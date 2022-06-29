@@ -1,0 +1,231 @@
+__Project__ = 'Crawl Input Creation Automation'
+#=========Import Function========#
+import pandas as pd,glob,random,json
+
+#==============To Get CSV files list from a folder===============#
+path = r'C:\Users\santhosh.s3\Downloads\Automation'
+csv_files = glob.glob(path + "/*.csv")
+df_list = (pd.read_csv(file,sep=',') for file in csv_files)
+#==============Concatenate all DataFrames================#
+big_df   = pd.concat(df_list, ignore_index=False,sort=True)
+Keys = pd.DataFrame(big_df)
+#==============Capturing data from inputfile===============#
+zipcode = Keys['Zipcode']
+item_number = Keys["Sam's Item#"]
+region = Keys["Region"]
+sam_name = Keys["Sam's Name"]
+print("All Regions readed...")
+print()
+# #=============Looping all the columns=============#
+Sams = []
+for i,j,k,l in zip(zipcode,item_number,region,sam_name):
+    data = {}
+    finalZipcode = ''
+#==========calculating zipcode length to identify 3, 4 digit zipcode=======#
+    zipLen = str(i)
+    ZipcodeLength =  len(str(zipLen))
+    if '4' in  str(ZipcodeLength):
+        finalZipcode = '0' + str(zipLen)
+    elif '3' in str(ZipcodeLength):
+        finalZipcode = '00' + str(zipLen)
+    else:
+        finalZipcode = str(zipLen)
+    data["sams_name"] = str(l).replace("'","")
+    data["zipcode"] = ZipcodeData = str(finalZipcode).replace('.0','')
+    data["region"] = str(k)
+    data["sams_item"] = str(j)
+#=========To concatenate zipcode_itemnumber_region===========#
+    data["cat"] = '{}_{}_{}'.format(str(j),str(ZipcodeData),str(k))
+    Sams.append(data)
+x = str(Sams).replace("'",'"')
+df = pd.read_json(x)
+#==========Saving client input in local path | The folder should be empty========#
+df.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Client Input\Client Input_11.csv", encoding='utf-8', index=False, sep=',') #======Convertting json to csv=======#
+
+print("Client Input process Completed...")
+print()
+
+print(":)")
+print()
+print("Lookup Process begins")
+print()
+
+#=================lookup function============#
+
+clientChunk = json.loads(x)
+databaseChunk = pd.read_csv(r'C:\Users\santhosh.s3\Downloads\Automation\Database\Database Sheet Automation.csv', encoding='utf-8',sep=',')
+ClientinputChunk = pd.read_csv(r'C:\Users\santhosh.s3\Downloads\Automation\Client Input\Client Input_11.csv', encoding='utf-8',sep=',')
+duplicateclient = ClientinputChunk.drop_duplicates(['cat'],keep='last')
+lookup = databaseChunk.merge(duplicateclient,on='sams_item',how='outer')
+duplicates = lookup.drop_duplicates(['zipcode','cat'],keep='last')
+duplicates.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Client Input\lookupfile_11.csv", encoding='utf-8', index=False, sep=',')
+lookupChunk = pd.read_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Client Input\lookupfile_11.csv", encoding='utf-8',sep=',')
+locationChunk = pd.read_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Database\Location Sheet Automation.csv", encoding='utf-8', sep=',')
+lookup = lookupChunk.merge(locationChunk,on='zipcode',how='outer')
+lookupDuplicates = lookup.drop_duplicates(['zipcode','cat'],keep='last')
+lookupDuplicates.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Client Input\Finallookupfile_11.csv", encoding='utf-8', index=False, sep=',')
+
+print("Lookup process done moving onto the input creation")
+print()
+# #==============Creating input file===============#
+
+inputFileChunk = pd.read_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Client Input\Finallookupfile_11.csv", encoding='utf-8', sep=',')
+inputChunk = pd.DataFrame(inputFileChunk)
+inpItemnumber = inputChunk['sams_item']
+inpZipcode = inputChunk['zipcode']
+inpProid = inputChunk['Product ID']
+inpRegion = inputChunk['region']
+inpStore = inputChunk['Store ID']
+inpStatename = inputChunk['State Name']
+inpStateid = inputChunk['STATE']
+inpProurl = inputChunk["Sam's Url"]
+inpStorename = inputChunk["Sam's Name"]
+inpUniqueId = inputChunk['cat']
+inpList = []
+for sto_id,zipc,state_name,stateid,p_url,reg_name,p_id,sto_name,uniqueid in zip(inpStore,inpZipcode,inpStatename,inpStateid,inpProurl,inpRegion,inpProid,inpStorename,inpUniqueId):
+    inputDict = {}
+    ranNum = random.randint(11111,99999)
+    ranNumpxvid = random.randint(1111,9999)
+    inputDict['url'] = 'https://www.samsclub.com/api/node/vivaldi/browse/v2/products/{}?includeOptical=true&type=LARGE&clubId={}'.format(str(p_id),str(sto_id)).replace('.0','')   #====need to capture product id fro product url column
+    inputDict['domain'] = 'samsclub'
+    inputDict['webMethod'] = 'get'
+    inputDict['type'] = 'product_page'
+    inputDict['pageDepth'] = 'product_page'
+    inputDict['gatewayType'] = 'PYTHONREQUEST'
+    inputDict['validateParsedOutput'] = 'FALSE'
+    inputDict['fetchNextCrawlUrl'] = 'TRUE'
+    inputDict['uniqueIdentifier'] = str(uniqueid)
+    inputDict['product_url'] = str(p_url)
+    inputDict['variation_flag'] = 'default_flag'
+    inputDict['pxvid'] = str(ranNumpxvid)
+    inputDict['state'] = str(state_name)
+    inputDict['state_id'] = str(stateid)
+    inputDict['store'] = str(sto_name).replace("'",'')
+    inputDict['ebags_unique_identifier'] = str(zipc)
+    inputDict['zipcode_input'] = str(zipc)
+    inputDict['storeid_input'] = str(sto_id)
+    inputDict['region_name'] = str(reg_name)
+    inputDict['main_url'] = 'https://www.samsclub.com/api/node/vivaldi/browse/v2/products?includeOptical=true#{}'.format(inputDict['uniqueIdentifier'])
+    inpList.append(inputDict)
+outputInp = str(inpList).replace("'",'"')
+# ==========Saving input in local path based on the regions========#
+finalOutput = json.loads(outputInp)
+print("Region wise Input creation process started....\nPlease wait to complete it will take time :)")
+inpZList = []
+for val in finalOutput:
+    regName = val['region_name']
+    # ==========All Regions Name NW,Meat,Produce sams,BA,MW,NE,TE,SE,LA,SD=========#
+    if 'NW'  in str(regName):
+        InpData = str(val).replace("'",'"')
+        inpZList.append(InpData)
+        regInpData = str(inpZList).replace("'",'')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_NW_PDP.tsv", encoding='utf-8', index=False, sep='\t')
+print ("NW Region input created...")
+print()
+inpZList1 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'Meat' == str(regName):
+        InpData = str(val).replace("'",'"')
+        inpZList1.append(InpData)
+        regInpData = str(inpZList1).replace("'",'')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_Meat_PDP.tsv", encoding='utf-8', index=False, sep='\t')
+print("Meat Region input created...")
+print()
+inpZList2 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'Produce sams'  in str(regName):
+        InpData = str(val).replace("'",'"')
+        inpZList2.append(InpData)
+        regInpData = str(inpZList2).replace("'",'')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_Produce sams_PDP.tsv", encoding='utf-8', index=False, sep='\t')
+print("Produce Sam's Region input created...")
+print()
+inpZList3 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'BA'  in str(regName):
+        InpData = str(val).replace("'",'"')
+        inpZList3.append(InpData)
+        regInpData = str(inpZList3).replace("'",'')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_BA_PDP.tsv", encoding='utf-8', index=False, sep='\t')
+print("BA Region input created...")
+print()
+inpZList4 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'MW'  in str(regName):
+        InpData = str(val).replace("'", '"')
+        inpZList4.append(InpData)
+        regInpData = str(inpZList4).replace("'", '')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_MW_PDP.tsv",encoding='utf-8', index=False, sep='\t')
+print("MW Region input created...")
+print()
+inpZList5 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'NE'  in str(regName):
+        InpData = str(val).replace("'", '"')
+        inpZList5.append(InpData)
+        regInpData = str(inpZList5).replace("'", '')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_NE_PDP.tsv",encoding='utf-8', index=False, sep='\t')
+print("NE Region input created...")
+print()
+inpZList6 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'TE'  in str(regName):
+        InpData = str(val).replace("'", '"')
+        inpZList6.append(InpData)
+        regInpData = str(inpZList6).replace("'", '')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_TE_PDP.tsv",encoding='utf-8', index=False, sep='\t')
+print("TE Region input created...")
+print()
+inpZList7 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'SE'  in str(regName):
+        InpData = str(val).replace("'", '"')
+        inpZList7.append(InpData)
+        regInpData = str(inpZList7).replace("'", '')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_SE_PDP.tsv",encoding='utf-8', index=False, sep='\t')
+print("SE Region input created...")
+print ()
+inpZList8 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'LA'  in str(regName):
+        InpData = str(val).replace("'", '"')
+        inpZList8.append(InpData)
+        regInpData = str(inpZList8).replace("'", '')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_LA_PDP.tsv",encoding='utf-8', index=False, sep='\t')
+print("LA Region input created...")
+print()
+inpZList9 = []
+for val in finalOutput:
+    regName = val['region_name']
+    if 'SD' in str(regName):
+        InpData = str(val).replace("'", '"')
+        inpZList9.append(InpData)
+        regInpData = str(inpZList9).replace("'", '')
+        dbf = pd.read_json(regInpData)
+        dbf.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_SD_PDP.tsv",encoding='utf-8', index=False, sep='\t')
+print("SD Rgion input created...")
+print()
+# #========Saving Complete file in local path(whole input)==============#
+#
+fullInputfile = pd.read_json(outputInp)
+fullInputfile.to_csv(r"C:\Users\santhosh.s3\Downloads\Automation\Final Input\Input_Sams_Club_All_Regions_PDP.tsv", encoding='utf-8',index=False, sep='\t')
+print("All Regions input created for backup")
+print()
+print ("Thankyou!!!..Please delete all the files which is inside in client input folder")
